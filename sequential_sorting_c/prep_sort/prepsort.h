@@ -40,6 +40,14 @@ void prepSort(void* arr, const size_t len, const size_t itemSize, int ordered,
 	      unsigned long (*val_fun)(const void*, const size_t),
 	      int (*compar_fun)(const void*, const void*),sort_funs f);
 
+//alternatively you can use these if you know the size ahead of time
+//if you really want to optimize you can drop sort_funs arg and include the sort you
+//want to use in the function
+void prepSort_1(char* arr, const size_t len, const void* max,const void* min, sort_funs f);
+void prepSort_2(short* arr, const size_t len, const void* max,const void* min, sort_funs f);
+void prepSort_4(int* arr, const size_t len, const void* max,const void* min, sort_funs f);
+void prepSort_8(long* arr, const size_t len, const void* max,const void* min, sort_funs f);
+
 
 
 	

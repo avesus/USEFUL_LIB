@@ -1,0 +1,81 @@
+This is the begining of a set of helper functions that I am hoping to
+be able to reuse instead of rewriting (or painstackingly modify from
+some other implementation) each time I start a new project. Any code
+added should be memory leak free, not break any existing projects, and
+have robust error checking.
+
+
+If you think the API for a given header file should be changed (or
+entire implemention changed). Let me know and we can discuss it. Don't
+break code depending on these libraries without warning.
+
+Error checking on super time sensitive functions should be given the
+option to compile out (i.e takeTime() should not have to error check
+as that will add overhead). Usually those few ns won't matter so it
+should have the option to error check/not.
+
+c/cpp:
+I really don't know shit about cpp (trying to fix that) but the
+cpp_helpers/* is just c code right now. My hope is that in time I will
+update it to actually take advantage of cpp.
+
+c_helpers/*
+arg.c/.h -
+Simple argument parser. See sequential_sorting_c for usage (its pretty
+intuitive)
+
+locks.c/.h -
+Locks built with CAS. The biggest use case is that there is a "lb" and
+"hb" option which basically means that all the locking infastructure
+can be done in either the lower n bits (that are automatically 0 for a
+ptr due to allignment) or higher 16 bits (always 16) that are always 0
+for a 64 bit ptr because virtual memory address range is only 48
+bits. An example of where these are useful will be uploaded soon when
+I add my parallel hashtable. Note I have tested the low bits
+implementation heavily, high bits and generic have not be fully
+tested.
+
+bits.c/.h
+Simple library for modifying the lowbits/highbits ptrs (see
+explination above).
+
+opt.c/.h
+Some somewhat optimized functions for performing simple ops (alot more
+to add). Thanks for the bsr/bsf by the way!
+
+temp.c/.h
+Library that is useful when testing performance over multiple trials
+(especially parallel programs). What is basically does is tracks the
+temperature on the cores the tests are running on and between trials
+will sleep until the temperature has reached pre-run threshhold (it
+has a timeout). Example usage can be found in sequential_sorting_c
+
+timing.c/.h
+Timing library that I just started (so probably some bugs, I will work
+to fix those, if you find a bug that requires an overhaul of the API
+to fix properly let me know before you make the fix). The idea is that
+you can set it up to time N events with T timers for each event (I
+considered variable number of timers but decided that the potential
+overhead of an array copy/alloc on linked list in fine grain timing
+would be too much). You can always see T way larger than you think it
+needs to be or extern "cur_timers" and realloc when you know it wont
+affect timing. The printing functionality is pretty good imo. There is
+human readable printout (just give is the ns time and it will pick
+units for you) as well as csv printout (with statistics) or human
+readable (ish) with statistics (for both of those you can set unit
+easily, see sequential_sorting_c for example).
+
+util.c/.h
+General util functions. Has some statistical functions in it but
+mostly contains wrapper for some basic stuff (read/write,
+fread/fwrite, calloc/malloc) with good error checking. Right now
+ALWAYS exits on error, if you want to change that add a #define to
+config to change how die/errdie work.
+
+config.h
+Where general config stuff (like verbosity, debug mode, error
+checking, etc...) should go. No real code should be there, just
+#define's that you can use to create modes for the rest of the library
+
+
+good code comments coming soon!

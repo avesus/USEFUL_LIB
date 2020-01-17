@@ -1,0 +1,50 @@
+This is meant to serve a repo that contains useful code that will
+serve in a variety of projects. Inside helpers are building block code
+(there is a README in there with more explanation). Outside of helpers
+are directories that will contain various implementations for a given
+algorithm.
+
+To add a new algorithm please put it in a new directory named
+<parallel/sequential>_<algorithm name>_<c/cpp>
+
+Feel free to add to any of the existing algorithm libraries but follow
+the standards set by the README inside that given algorithms
+directory. If you create a new directory please establish a template
+that others can copy. Inside each directory there should be a
+directory named builtin_<algorithm>. This will server both to show how
+to driver code is largely structures as well as serve as a generic
+benchmark for performance (not the highest standard but just to get a
+feel for how any other algorithm performs).
+
+DONT add a random implemention of some algorithm you wrote for a given
+project that only works with that projects usage in mind (i.e just
+adding an integer sort would be BAD).
+
+DO add any implemention of some algorithm that you have provided at
+least somewhat of a generic implemention for. The algorithms you add
+do not need to be super optimized or efficient, but they do need to be
+correct and have a clear template for how to use (example
+implementation for a variety of types). If you add a new algorithm to
+an existing directory please follow the template.
+
+ALL new implementions must take a "--correct" argument which robustly
+checks that the implemention is, wait for it... correct.
+
+ALL sequential code must have NO memory leaks assuming normal
+usage. Parallel code should strive to have no memory leaks but
+sometimes that is nearly impossible with serious performance costs. If
+you include a memory leaks PLEASE explain why it was necessary.
+
+ALL implementations must have comments explaining desired usage (i.e
+its good under conditions X).
+
+ALL new directories must have a README
+
+Right now only sequential sort exists. I am planning to add parallel
+sort, parallel hashtable, and sequential hashtable.
+
+I would suggest/urge you to use the wrapper in util.c/h (and add to
+them). If you are trying to squeeze every ounce out of performance,
+use wrappers and add a #define to compile out the error checking (see
+helpers for me details about how to do that)
+

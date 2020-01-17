@@ -1,0 +1,27 @@
+This is the directory for all sequential c sorting algorithms. lookin
+builtin_sort/ for an example of how to write a driver to add a new
+sort. For all helper functions related to actually using the sort,
+please place in driver.h (against built_sort/driver.h has an example
+of that for qsort). If you want to modify a sort thats in here let me
+know/make a new project (suggested to just copy builtin_sort and
+you'll basically be done writing the driver).
+
+Correctness standard:
+result matches result of math.h::qsort on copy of the array to be
+sorted. Do not add anything that does not meat this standard.
+
+Memory leaks:
+None unless it crashes (i.e failed alloc)
+
+Right now:
+
+prep_sort:
+very good for sorting strings/long byte arrays, decent for integers
+(better than quicksort on larger arrays but in not inplace)
+
+normal_sort:
+This is just a library I like. Its really optimized but it only sorts
+char/short/int/long and it tough to configure/make useful
+
+builtin_sort
+This is the template/uses math.h qsort.

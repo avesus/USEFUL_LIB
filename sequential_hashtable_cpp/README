@@ -1,0 +1,17 @@
+This is the directory for all sequential cpp
+hashtables. builtin_hashtable is C++ standard unordered_map.
+
+This uses test_config.h to determine the hashtable type. test.py will
+write over the config file to allow easy testing.
+
+flat_hashtable:
+This is a phenominal hashtable. The only issue with it is that right
+now it cant take char* (only string) which makes inserting text based
+keys/values unnecissarily slow. (for that alt_hashtable in the c
+hashtable dir is faster). Aside from that this is the best for
+speed. It has fairly high space usage but its throughput is top notch.
+
+builtin_hashtable:
+standard cpp unordered map.
+
+

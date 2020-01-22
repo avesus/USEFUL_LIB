@@ -106,7 +106,7 @@ void initTiming(int nevents, int* ntimers, char*** dif_headers, char** ev_header
         
   cur_timers.ev_headers = ev_headers;
   cur_timers.nevents = nevents;
-  cur_timers.events = (tevent*)mycalloc(nevents, sizeof(tevent));
+  cur_timers.events = mycalloc(nevents, sizeof(tevent));
   for(int i=0;i<nevents;i++){
 #ifdef USAGE_CHECK
     if(!ntimers[i]){
@@ -191,8 +191,11 @@ void diffPatternN(int event_num, int n){
   if(event_num>=cur_timers.nevents){
     die("(diffPatternN)event out of range: %d/%d\n", event_num, cur_timers.nevents);
   }  
-  if((cur_timers.events[event_num].index%n)!=0 || cur_timers.events[event_num].index == 0){
+  if((cur_timers.events[event_num].index%n)!=0){
     die("Times taken don't match diff pattern!\n");
+  }
+  if(cur_timers.events[event_num].index == 0){
+    die("No Times Taken!\n");
   }
 #endif
 

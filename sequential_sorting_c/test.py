@@ -2,11 +2,10 @@
 
 
 import os
-import sys
 import argparse
 
 # this is basic driver for testing correctness/performance of all
-# sort functions in sequantial_sorting/
+# sort functions in sequantial_sorting_c/
 
 parser = argparse.ArgumentParser(description='driver for the driver...')
 parser.add_argument("-v", "--verbosity", action="count", default=0, help="increase output verbosity")

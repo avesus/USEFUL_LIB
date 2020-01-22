@@ -15,7 +15,7 @@
 
 #define false 0
 #define true (!false)
-//typedef unsigned int bool;
+typedef unsigned int bool;
 
 static int verbose = 0;
 static char* commandLine;

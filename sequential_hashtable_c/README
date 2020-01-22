@@ -1,0 +1,23 @@
+This is the directory for all sequential c
+hashtables. builtin_hashtable is C++ simply because no c standard
+library I know of has a hashtable (so if you make cpp hashtable just
+copy the directory).
+
+The only hashtable currently in the directory is alt_hashtable. This
+hashtable is optimized to cache align the nodes. Due to this strict
+optimization key+value sizes must be < cache_line_size-8 (8 from next
+ptr as its linked list based). It also means there is no good way to
+create a generic function type. As a result test_config.h can be found
+in the directory where you see examples of int key type or char* key
+types. test.py will write over the config file to allow easy testing.
+
+alt_hashtable:
+The configuration can be found in alt_hashtable.h and is clearly
+commented. What alt stands for is that resizing only rehashes every
+other call. If your project is cpp I would suggest checking out
+flat_hashtable in the cpp hashtable directory.
+
+builtin_hashtable:
+standard cpp unordered map.
+
+

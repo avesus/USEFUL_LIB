@@ -1,0 +1,19 @@
+This is the directory for all parallel c
+hashtables.
+
+There is no builtin parallel hashtable in c
+
+alt_hashtable:
+The only hashtable current in the directory is alt_hashtable which is
+the parallelized version of alt_hashtable from sequential. More to
+come. It shares all the same features with the sequential
+alt_hashtable. The locking is done via the lower bits in the next ptr
+of the first node in each slot. This means that 62 is the maximum
+number of threads. You can increase this by either increasing the
+allignment (i.e instead of 64, make it 128 and 126 concurrent readers
+will be possible). The other alternative is to replace lowbit locking
+with highbit locking. This would affect the resizing optimization. A
+version that allows for high bit locking will be added
+eventually. Like the sequential version difference configurations are
+managed by #defines set in test_config.h. test.py is also present to
+assist in easy testing.

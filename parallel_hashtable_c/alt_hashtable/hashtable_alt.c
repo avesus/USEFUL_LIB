@@ -1,4 +1,6 @@
 #include "hashtable_alt.h"
+#include <valgrind/valgrind.h>
+#include <valgrind/memcheck.h>
 
 //////////////////////////////////////////////////////////////////////
 //hash function defined here
@@ -162,9 +164,11 @@ uint32_t strHash_nolen(node n){
 
 //////////////////////////////////////////////////////////////////////
 //comparison function for use defined here
+#ifdef int_test
 int compare_int(node a, node b){
   return !((a.key == b.key));
 }
+#endif
 
 #ifdef str_test
 int compare_str(node a, node b){
@@ -203,9 +207,14 @@ int compare_str_nolen(node a, node b){
 
 //////////////////////////////////////////////////////////////////////
 
-node_block* addCheck(hashTable* table, unsigned int slot, node n){
+
+
+
+
+
+node_block* addCheck(node_block* ht, unsigned int slot, node n){
   int before;
-  node_block* temp=table->ht+slot;
+  node_block* temp=ht+slot;
   node_block* ret=NULL;
   int ret_index=1;
   int i;
@@ -229,9 +238,11 @@ node_block* addCheck(hashTable* table, unsigned int slot, node n){
 }
 
 
-int deleteNode(hashTable* table, node n){
-  unsigned int slot = hashFun(n)&((1<<table->size)-1);
-  node_block* temp=table->ht+slot;
+
+
+int deleteNode_inner(node_block* ht, unsigned int slot, node n){
+  node_block* temp=ht+slot;
+  wrlock(ht+slot);
   int i;
   while(temp){
     int taken_mask = getTaken(temp);
@@ -240,18 +251,51 @@ int deleteNode(hashTable* table, node n){
       taken_mask ^= 1<<i;
       if(!compare_nodes(n, temp->ele[i])){
 	setFree(temp, (1<<i));
-	table->items--;
+	unlockWR(ht+slot);
 	return 1;
       }
     }
     temp=getNext(temp);
   }
+  unlockWR(ht+slot);
   return 0;
 }
 
-node* findNode(hashTable* table, node n){
-  unsigned int slot = hashFun(n)&((1<<table->size)-1);
-  node_block* temp=table->ht+slot;
+
+int deleteNode(hashTable* table, node n, int tid){
+  resizePause(table);
+  rdlock_resize(table, tid);
+  unsigned int slot=hashFun(n);
+  if(table->resizing==do_resize ||
+     table->resizing==finish_resize){
+    if(deleteNode_inner(table->ht, slot&((1<<(table->old_size))-1), n)){
+      __atomic_sub_fetch(&(table->items), 1, __ATOMIC_RELAXED);
+      unlockRD_resize(table, tid);
+      return 1;
+    }
+    else if(deleteNode_inner(table->ht_new, slot&((1<<(table->size))-1), n)){
+      __atomic_sub_fetch(&(table->items), 1, __ATOMIC_RELAXED);
+      unlockRD_resize(table, tid);
+      return 1;
+    }
+    unlockRD_resize(table, tid);
+    return 0;
+  }
+  else{
+    if(deleteNode_inner(table->ht, slot&((1<<(table->size))-1), n)){
+      __atomic_sub_fetch(&(table->items), 1, __ATOMIC_RELAXED);
+      unlockRD_resize(table, tid);
+      return 1;
+    }
+    unlockRD_resize(table, tid);
+    return 0;
+  }
+}
+
+node* findNode_inner(node_block* ht, unsigned int slot, node n){
+  node_block* temp=ht+slot;
+  rdlock(ht+slot);
+  
   int i;
   while(temp){
     int taken_mask = getTaken(temp);
@@ -259,41 +303,109 @@ node* findNode(hashTable* table, node n){
       __asm__("bsf %1, %0" : "=r" (i) : "rm" (taken_mask));
       taken_mask ^= 1<<i;
       if(!compare_nodes(n, temp->ele[i])){
+	unlockRD(ht+slot);
 	return (&(temp->ele[i]));
       }
     }
     temp=getNext(temp);
   }
+  unlockRD(ht+slot);
   return NULL;
 }
 
-int addNode(hashTable* table, node n){
+node* findNode(hashTable* table, node n, int tid){
+
+  resizePause(table);
+  rdlock_resize(table, tid);
   unsigned int slot=hashFun(n);
+  node* ret;
+  if(table->resizing==do_resize ||
+     table->resizing==finish_resize){
+    ret = findNode_inner(table->ht, slot&((1<<(table->old_size))-1), n);
+    if(ret){
+      unlockRD_resize(table, tid);
+      return ret;
+    }
+    ret = findNode_inner(table->ht_new, slot&((1<<table->size)-1), n);
+    unlockRD_resize(table, tid);
+    return ret;
+  }else{
+    ret = findNode_inner(table->ht, slot&((1<<table->size)-1), n);
+    unlockRD_resize(table, tid);
+    return ret;
+  }
+}
+
+int addNode_inner(node_block* ht, int table_size, int type, unsigned int slot, node n){
   unsigned int full_val = slot;
-  slot &= ((1<<table->size)-1);
-  node_block* ret = addCheck(table, slot, n);
+  slot &= ((1<<table_size)-1);
+  wrlock(ht+slot);
+  node_block* ret = addCheck(ht, slot, n);
   if(ret){
     int i = getLoc(ret);
     ret = getNB(ret);
     if(!ret){
       ret=createBlock();
       i=0;
-      setNext(ret, getNext((table->ht+slot)));
-      setNext((table->ht+slot), ret);
+      setNext(ret, getNext((ht+slot)));
+      setNext((ht+slot), ret);
     }
     ret->ele[i]=n;
-    table->items++;
     setFree(ret, (1<<i));
-    if(getResizeType(table->resize)){
-      setSlotBit(ret, (1<<i), ((full_val>>(table->size))&1)<<i);
+    if(type){
+      setSlotBit(ret, (1<<i), ((full_val>>(table_size))&1)<<i);
     }
-    if(table->items>(1<<table->size)){
-      resize(table);
-    }
+    unlockWR(ht+slot);
     return 1;
   }
+  unlockWR(ht+slot);
   return 0;
 }
+
+
+
+
+int addNode(hashTable* table, node n, int tid){
+  resizePause(table);
+  rdlock_resize(table, tid); 
+  unsigned int slot=hashFun(n);
+  if(table->resizing==do_resize ||
+     table->resizing==finish_resize){
+    if(findNode_inner(table->ht, slot&((1<<(table->old_size))-1), n)){
+      unlockRD_resize(table, tid);
+      return 0;
+    }
+    if(addNode_inner(table->ht_new, table->size, getResizeType(table->resize), slot, n)){
+      unlockRD_resize(table, tid);
+      int items = __atomic_add_fetch(&(table->items), 1, __ATOMIC_RELAXED);
+      return 1;
+    }
+    unlockRD_resize(table, tid);
+    return 0;
+    
+  }else{
+    if(addNode_inner(table->ht, table->size, getResizeType(table->resize), slot, n)){
+      unlockRD_resize(table, tid);
+      int items = __atomic_add_fetch(&(table->items), 1, __ATOMIC_RELAXED);
+	if(items>(1<<table->size)&&(table->resizing==not_resize)){
+	unsigned long expec_val=not_resize, new_val=start_resize;
+	if(__atomic_compare_exchange(&(table->resizing),
+				     &expec_val,
+				     &new_val,
+				     1, __ATOMIC_RELAXED, __ATOMIC_RELAXED)){
+	  pthread_t resize_tid;
+	  mypthread_create(&resize_tid, NULL, resize, (void*)table);
+	  return 1;
+	}
+      }
+
+      return 1;
+    }
+    unlockRD_resize(table, tid);
+    return 0;
+  }
+}
+
 
 void fast_zero_nb(unsigned long* ptr){
   ptr[0]=0;
@@ -305,11 +417,55 @@ void fast_zero_nb(unsigned long* ptr){
   ptr[6]=0;
   ptr[7]=0;
 }
+
 node_block* createBlock(){
   node_block* ret = aligned_alloc(cache_line_size, sizeof(node_block));
   fast_zero_nb((unsigned long*)ret);
+  initLock(ret);
   return ret;
 }
+
+#define small_normally 5
+resize_free_nodes* resizeInitToFree(){
+  resize_free_nodes* tf = mymalloc(sizeof(resize_free_nodes));
+  fast_memset(tf, 0, sizeof(resize_free_nodes));
+  tf->init_size = small_normally;
+  tf->to_free[0] = mymalloc((1<<small_normally)*sizeof(void*));
+  fast_memset(tf->to_free[0], 0, (1<<small_normally)*sizeof(void*));
+  tf->next_x = (1<<small_normally);
+  return tf;
+}
+
+void resizeAddToFree(resize_free_nodes* tf, void* n){
+  tf->to_free[tf->x_slot][tf->y_slot] = n;
+  tf->y_slot++;
+  if(tf->y_slot == tf->next_x){
+    tf->next_x <<= 1;
+    tf->x_slot++;
+    tf->to_free[tf->x_slot] = mymalloc(tf->next_x*sizeof(void**));
+    tf->y_slot = 0;
+  }
+}
+
+void resizeFreeToFree(resize_free_nodes* tf){
+  int x_slot = tf->x_slot;
+  int y_slot = tf->y_slot;
+  int slot_size;
+  for(int i =0;i<x_slot;i++){
+    slot_size = (1<<(i+tf->init_size));
+    for(int j=0;j<slot_size;j++){
+      free(tf->to_free[i][j]);
+    }
+    free(tf->to_free[i]);
+  }
+  slot_size = (1<<(x_slot+tf->init_size));
+  for(int i =0;i<y_slot;i++){
+    free(tf->to_free[x_slot][i]);
+  }
+  free(tf->to_free[x_slot]);
+  free(tf);
+}
+
 
 void addResize(node_block* new_table,unsigned int slot,unsigned int next_bit, node n, int type){
   node_block* temp=new_table+slot;
@@ -335,27 +491,49 @@ void addResize(node_block* new_table,unsigned int slot,unsigned int next_bit, no
   }
   setNext(new_node, getNext((new_table+slot)));
   setNext((new_table+slot), new_node);
-
 }
 
-void resize(hashTable* table){
-  
+void resizePause(hashTable* table){
+  int temp_resize = __atomic_load_n(&table->resizing, __ATOMIC_RELAXED);
+  while(temp_resize==start_resize ||
+	temp_resize==finish_resize){
+    do_sleep;
+    temp_resize = __atomic_load_n(&table->resizing, __ATOMIC_RELAXED);
+  }
+}
+
+void* resize(void* args){
+  pthread_detach(pthread_self());
+  hashTable* table = (hashTable*) args;
+  pauseAll(table);
+  table->resizing = do_resize;
   int type = getResizeType(table->resize);
-  int oldSize=(1<<table->size);
+  int old_size=(1<<table->size);
+  table->old_size=table->size;
   table->resize++;
   table->size++;
   node_block* new_table=(node_block*)aligned_alloc(cache_line_size,
 						   (1<<table->size)*sizeof(node_block));
   for(int iter=0;iter<(1<<table->size);iter++){
     fast_zero_nb((unsigned long*)(new_table+iter));
+    initLock((&(new_table[iter])));
   }
+  table->ht_new = new_table;
+  unpauseAll(table);
+
+  //prepare to free nodes (have to wait to do this till
+  //after the table has been resized as parallel access
+  //could otherwise cause invalid memory access
+  resize_free_nodes* tf = resizeInitToFree();
+  
   node_block* temp;
   unsigned int slot;
   int j;
-
-  for(int i =0;i<oldSize;i++){
+  
+  for(int i =0;i<old_size;i++){
     int to_free = 0;
     temp=table->ht+i;
+    wrlock(table->ht+i);
     while(temp){
       int taken_mask = getTaken(temp);
       while(taken_mask){
@@ -369,36 +547,73 @@ void resize(hashTable* table){
 	  next_bit=(slot>>table->size)&0x1;
 	  slot&=((1<<table->size)-1);
 	}
-	addResize(new_table, slot,next_bit,temp->ele[j], type);
+
+	wrlock(new_table+slot);
+	addResize(table->ht_new, slot,next_bit,temp->ele[j], type);
+	unlockWR(new_table+slot);
+
       }
+      clearBits(temp);
       if(to_free){
-	node_block* last = temp;
-	temp=getNext(temp);
-	free(last);
+	resizeAddToFree(tf, getPtr(temp));
       }
-      else{
-	temp=getNext(temp);
-      }
+      temp=getNext(temp);
       to_free = 1;
     }
+    unlockWR(table->ht+i);
   }
+  table->resizing = finish_resize;
+  pauseAll(table);
   free(table->ht);
-  table->ht=new_table;
+  table->ht=table->ht_new;
+  table->ht_new=NULL;
+  table->resizing=not_resize;
+  unpauseAll(table);
+  resizeFreeToFree(tf);
+  return NULL;
 }
 
 hashTable* initTable(int isize){
-  hashTable* table=calloc(1, sizeof(hashTable));
+  hashTable* table=aligned_alloc(cache_line_size, sizeof(hashTable));
+  
+  fast_memset(table, 0, sizeof(hashTable));
   table->ht=aligned_alloc(cache_line_size, (1<<isize)*sizeof(node_block));
+
   for(int i=0;i<(1<<isize);i++){
     fast_zero_nb((unsigned long*)(table->ht+i));
+    initLock((table->ht+i));
   }
+
+  initLock_resize(table);
+  table->resizing=0;
   table->size=isize;
   return table;
 }
 
+void pauseAll(hashTable* table){
+  for(int i=0;i<max_threads;i++){
+    wrlock_resize(table, i);
+  }
+}
+
+void unpauseAll(hashTable* table){
+  for(int i=0;i<max_threads;i++){
+    unlockWR_resize(table, i);
+  }
+
+}
+
+
 void freeTable(hashTable* table){
+  int temp_resize = __atomic_load_n(&table->resizing, __ATOMIC_RELAXED);
+  while(temp_resize!=not_resize){
+    do_sleep;
+    temp_resize = __atomic_load_n(&table->resizing, __ATOMIC_RELAXED);
+  }
+  
   int size = (1<<table->size);
   node_block* temp;
+  free(table->resize_lock);
   for(int i=0;i<size;i++){
     temp=table->ht+i;
     int to_free = 0;
@@ -418,6 +633,8 @@ void freeTable(hashTable* table){
   free(table);
 }
 
+
+
 int printSlot(hashTable* table, int slot, int v){
   node_block* temp;
   int items=0;
@@ -431,9 +648,7 @@ int printSlot(hashTable* table, int slot, int v){
     }
     for(int j=0;j<nnodes;j++){
       if(v){
-#ifdef int_test
-	fprintf(stderr," %d:[%d][%d][%d] ",j,getTaken(temp)&(1<<j), temp->ele[j].key, temp->ele[j].val);
-#endif
+	//	fprintf(stderr," %d:[%d][%d][%d] ",j,getTaken(temp)&(1<<j), temp->ele[j].key, temp->ele[j].val);
       }
       if(getTaken(temp)&(1<<j)){
 	items++;
@@ -453,8 +668,9 @@ int printSlot(hashTable* table, int slot, int v){
 
 void printTable(hashTable* table, int v){
   int items=0;
-  for(int i =0;i<table->size;i++){
+  for(int i =0;i<(1<<table->size);i++){
     items += printSlot(table, i, v);
   }
   fprintf(stderr,"%d == %d / %d\n", items, table->items, 1<<table->size);
 }
+

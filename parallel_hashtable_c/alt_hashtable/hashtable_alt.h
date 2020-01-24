@@ -6,9 +6,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <time.h>
 #include <assert.h>
+#include "helpers/util.h"
 #include "helpers/bits.h"
+#include "helpers/locks.h"
 #include "helpers/opt.h"
 #include "test_config.h"
 
@@ -27,7 +30,7 @@ typedef struct intNode{
 typedef struct intNode node;
 int compare_int(node a, node b);
 #define compare_nodes(X, Y) compare_int(X, Y)
-#define hashFun(X) murmur3_32((const uint8_t*)(&((X).key)), getKeyLen((X)), mseed)
+#define hashFun(X) murmur3_32((const uint8_t*)(&((X).key)), getKeyLen((X)), mseed);
 #define getKeyLen(X) sizeof(int)
 #endif
 
@@ -63,7 +66,6 @@ short genTag_nolen(uint32_t val, short first_2);
 #define compare_nodes(X, Y) compare_str_nolen(X, Y)
 #define getKeyLen(X)
 #endif
-
 #ifdef str_hblen_test
 typedef struct strNode_hblen{
   char* key;
@@ -107,6 +109,7 @@ typedef struct node_block{
   unsigned char padding[padding_size];
 }node_block;
 
+//////////////////////////////////////////////////////////////////////
 //helpers to set meta info on nodes via
 //low/high bits of node_block ptr
 #define setLoc(X, Y) lowBitsSet((void**)(&(X)), Y)
@@ -124,9 +127,11 @@ typedef struct node_block{
 
 #define setSlotBit(X, Y, Z) highBitsSetMASK((void**)(&(X->next)), ((Z<<8)), ((Y<<8)))
 #define setFree(X, Y) highBitsSetXOR((void**)(&(X->next)), ((Y)))
+#define clearBits(X) highBitsSet((void**)(&(X->next)), 0);
 
 #define getNext(X) ((node_block*)getPtr((void*)(X->next)))
 #define setNext(X, Y) (setPtr((void**)(&(X->next)), Y))
+
 
 #if defined(str_test) || defined(str_nolen_test)
 #define getKeyPtr(X) (getPtr((void*)(X)))
@@ -138,27 +143,83 @@ typedef struct node_block{
 #define setKeyTag(X, Y) (highBitsSetOR((void**)(&(X)), (Y)))
 #define getKeyTag(X) ((highBitsGet((void*)(X)))&0xff)
 #endif
+//////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////
+//lock helpers/config
+
+#define max_threads lb_max_threads
+#define write_locked lb_write_locked
+
+#define initLock(X)
+#define rdlock(X) lb_readLock((void**)((&(X)->next)))
+#define wrlock(X) lb_writeLock((void**)(&((X)->next)))
+#define unlockWR(X) lb_unlock_wr((void**)(&((X)->next)))
+#define unlockRD(X) lb_unlock_rd((void**)(&((X)->next)))
+#define initLock_resize(X) {						\
+    (X)->resize_lock = aligned_alloc(cache_line_size, max_threads*cache_line_size); \
+    fast_memset((X)->resize_lock, 0, max_threads*cache_line_size);	\
+  }
+
+//todo, use normal atomic on UL
+#define rdlock_resize(X, Y) lb_readLock((void**)(&((X)->resize_lock[Y<<3])))
+#define wrlock_resize(X, Y) lb_writeLock((void**)(&((X)->resize_lock[Y<<3])))
+#define unlockWR_resize(X, Y) lb_unlock_wr((void**)(&((X)->resize_lock[Y<<3])))
+#define unlockRD_resize(X, Y) lb_unlock_rd((void**)(&((X)->resize_lock[Y<<3])))
+//////////////////////////////////////////////////////////////////////
+
+#define not_resize 0
+#define start_resize 1
+#define do_resize 2
+#define finish_resize 3
 
 
 //head of the hashtable
 typedef struct hashTable{
+  unsigned long* resize_lock;
+  unsigned long resizing;
+  node_block* ht_new; 
   node_block* ht;
-  int size;
   int items;
-  int resize;
+  int size; 
+  int old_size;
+  int resize; 
 }hashTable;
 
+//////////////////////////////////////////////////////////////////////
+//for freeing nodes within resize (parallel)
+#define max_free_nodes 32
+typedef struct resize_free_nodes{
+  void** to_free[max_free_nodes];
+  int x_slot;
+  int y_slot;
+  int next_x;
+  int init_size;
+}resize_free_nodes;
+
+resize_free_nodes* resizeInitToFree();
+void resizeAddToFree(resize_free_nodes* tf, void* n);
+void freeToFree(resize_free_nodes* tf);
+
+//////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////
+//resizing helpers
 #define getCanShrink(X) (X>>16)
 #define setCanShrink(X) (X|=(1<<16))
 #define getResizeType(X) ((!(X&0x1))<<8)
 #define getResize(X) (X&((1<<16)-1))
+//////////////////////////////////////////////////////////////////////
 
 //for creating block efficiently
 void fast_zero_nb(unsigned long* ptr);
 node_block* createBlock();
 
 //resizing table
-void resize(hashTable* table);
+void unpauseAll(hashTable* table);
+void pauseAll(hashTable* table);
+void resizePause(hashTable* table);
+void* resize(void* args);
 void addResize(node_block* new_table,
 	       unsigned int slot,
 	       unsigned int next_bit,
@@ -170,14 +231,14 @@ int printSlot(hashTable* table, int slot, int v);
 void printTable(hashTable* table, int v);
 
 //add node
-int addNode(hashTable* table, node n);
-node_block* addCheck(hashTable* table, unsigned int slot, node n);
+int addNode(hashTable* table, node n, int tid);
+node_block* addCheck(node_block* ht, unsigned int slot, node n);
 
 //delete node
-int deleteNode(hashTable* table, node n);
+int deleteNode(hashTable* table, node n, int tid);
 
 //find node
-node* findNode(hashTable* table, node n);
+node* findNode(hashTable* table, node n, int tid);
 
 //initialize table with size (size is exponent)
 hashTable* initTable(int isize);

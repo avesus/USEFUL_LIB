@@ -1,0 +1,41 @@
+CC=gcc
+CFLAGS=-O3 -g -D_GNU_SOURCE
+LDFLAGS=-lpthread -lm
+
+H_OBJS=helpers/locks.o helpers/temp.o helpers/opt.o helpers/util.o helpers/arg.o helpers/bits.o helpers/timing.o hashtable_alt.o
+
+all: driver
+
+locks.o: helpers/locks.c helpers/locks.h
+	$(CC) $(CFLAGS) -c helpers/locks.c -o helpers/locks.o $(LDFLAGS)
+
+temp.o: helpers/temp.c helpers/temp.h
+	$(CC) $(CFLAGS) -c helpers/temp.c -o helpers/temp.o $(LDFLAGS)
+
+opt.o: helpers/opt.c helpers/opt.h
+	$(CC) $(CFLAGS) -c helpers/opt.c -o helpers/opt.o $(LDFLAGS)
+
+util.o: helpers/util.c helpers/util.h
+	$(CC) $(CFLAGS) -c helpers/util.c -o helpers/util.o $(LDFLAGS)
+
+arg.o: helpers/arg.c helpers/arg.h
+	$(CC) $(CFLAGS) -c helpers/arg.c -o helpers/arg.o $(LDFLAGS)
+
+bits.o: helpers/bits.c helpers/bits.h
+	$(CC) $(CFLAGS) -c helpers/bits.c -o helpers/bits.o $(LDFLAGS)
+
+timing.o: helpers/timing.c helpers/timing.h
+	$(CC) $(CFLAGS) -c helpers/timing.c -o helpers/timing.o $(LDFLAGS)
+
+driver.o: driver.c driver.h
+	$(CC) $(CFLAGS) -c driver.c -o driver.o $(LDFLAGS)
+
+hashtable_alt.o: hashtable_alt.c hashtable_alt.h 
+	$(CC) $(CFLAGS) -c hashtable_alt.c -o hashtable_alt.o $(LDFLAGS)
+
+driver: driver.o $(H_OBJS)
+	$(CC) $(CFLAGS) driver.o $(H_OBJS) -o driver $(LDFLAGS)
+
+clean:
+	rm -f driver *~ *.o *#* helpers/*~ helpers/*#* + helpers/*.o
+

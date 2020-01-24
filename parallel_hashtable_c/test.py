@@ -27,7 +27,7 @@ parser.add_argument("-i",
 parser.add_argument("-t",
                     "--trials",
                     default="1",
-                    action="store_true",
+                    help="number of trials")
 parser.add_argument("--inserts",
                     default="20",
                     help="num inserts")
@@ -58,9 +58,8 @@ parser.add_argument("--alt",
                     default="",
                     action="store_true",
                     help="do alt table")
-parser.add_argument("--builtin",
-                    default="",
-                    action="store_true",
+parser.add_argument("--threads",
+                    default="1",
                     help="do builtin table")
 
 flags = parser.parse_args()
@@ -69,6 +68,7 @@ verbose = flags.verbosity
 
 inserts = flags.inserts
 queries = flags.queries
+nthreads = flags.threads
 ntrials = flags.trials
 
 regtemp = ""
@@ -89,10 +89,6 @@ funs = []
 if flags.alt is True:
     funs.append("alt_hashtable")
 
-if flags.builtin is True:
-    if verbose > 0:
-        print("builtin hashtable being used")
-    funs.append("builtin_hashtable")
 
 types = []
 if flags.int is True:
@@ -129,15 +125,14 @@ def fixFile(type_test, fpath):
 
 
 config_file_path = ""
-run_format = "(cd {}; make clean; make; {} ./driver --csv --trials {} --isize {} --inserts {} --queries {}"
+run_format = "(cd {}; make clean; make; {} ./driver --csv -t {} --trials {} --isize {} --inserts {} --queries {}"
 for i in funs:
     for j in types:
         config_file_path = i + "/test_config.h"
         fixFile(j, config_file_path)
-        to_run = run_format.format(i, memcheck, ntrials, length, inserts, queries)
+        to_run = run_format.format(i, memcheck, nthreads, ntrials, length, inserts, queries)
         to_run += " " + regtemp
         to_run += " " + correct
         to_run += ")"
-        print("Table Type: " + j)
         print(to_run)
         os.system(to_run)

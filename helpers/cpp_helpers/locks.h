@@ -8,8 +8,15 @@
 #define usleep_time 50
 #define do_sleep usleep(usleep_time);
 
+#ifdef normal_allignment
 #define lb_max_threads 6
 #define lb_write_locked 7
+#else
+//set how you like (i.e I usually use 64 byte aligned because cache
+//line size)
+#define lb_max_threads 62
+#define lb_write_locked 63
+#endif
 
 #define hb_max_threads (65534UL)
 #define hb_write_locked (65535UL)

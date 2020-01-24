@@ -106,7 +106,7 @@ void initTiming(int nevents, int* ntimers, char*** dif_headers, char** ev_header
         
   cur_timers.ev_headers = ev_headers;
   cur_timers.nevents = nevents;
-  cur_timers.events = (tevent*)mycalloc(nevents, sizeof(tevent));
+  cur_timers.events = mycalloc(nevents, sizeof(tevent));
   for(int i=0;i<nevents;i++){
 #ifdef USAGE_CHECK
     if(!ntimers[i]){
@@ -328,5 +328,16 @@ void freeTiming(){
   free(cur_timers.events);
   if(cur_timers.outfile!=stdout){
     fclose(cur_timers.outfile);
+  }
+}
+
+void timingBarrierInit(pthread_barrier_t* barrier, int nthreads){
+    mybarrierinit(barrier, nthreads);
+}
+
+void timingBarrierWait(pthread_barrier_t* barrier, int event_num, int tid){
+  pthread_barrier_wait(barrier);
+  if(!tid){
+    takeTime(event_num);
   }
 }

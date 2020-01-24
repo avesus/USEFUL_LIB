@@ -36,6 +36,7 @@ void* myACalloc(size_t alignment, size_t nmemb, size_t size, const char* fname, 
 #define myaalloc(x, y) myACalloc((x), (y), __FILE__, __LINE__);
 void* myAAlloc(size_t alignment, size_t size, const char* fname, const int ln);
 
+void myFree(void* ptr);
 //thread creation
 #define mypthread_create(w, x, y, z) myPthread_Create((w), (x), (y), (z), __FILE__, __LINE__)
 void myPthread_Create(pthread_t* tid,
@@ -51,6 +52,12 @@ void mySet_Core(pthread_attr_t* attr,
 		size_t core,
 		const char* fname,
 		const int ln);
+
+#define mybarrierinit(x, y) myBarrierInit((x), (y), __FILE__, __LINE__);
+void myBarrierInit(pthread_barrier_t* barrier,
+		   int nthreads,
+		   const char* fname,
+		   const int ln);
 
 //IO
 #define myopen2(x, y) myOpen((x), (y), __FILE__, __LINE__)

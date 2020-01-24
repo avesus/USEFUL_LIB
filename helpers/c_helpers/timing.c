@@ -330,3 +330,14 @@ void freeTiming(){
     fclose(cur_timers.outfile);
   }
 }
+
+void timingBarrierInit(pthread_barrier_t* barrier, int nthreads){
+    mybarrierinit(barrier, nthreads);
+}
+
+void timingBarrierWait(pthread_barrier_t* barrier, int event_num, int tid){
+  pthread_barrier_wait(barrier);
+  if(!tid){
+    takeTime(event_num);
+  }
+}

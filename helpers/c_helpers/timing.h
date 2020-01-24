@@ -100,4 +100,10 @@ void printEvent(int csv_flag, int csv_header, enum time_unit ptype, int event_nu
 //will print event for all events in cur_timers.
 void printStats(int csv_flag, enum time_unit ptype);
 
+//initializes barrier, just calls robust init function in utils
+void timingBarrierInit(pthread_barrier_t* barrier, int nthreads);
+
+//waits at barrier and has tid 0 takeTime(event_num)
+void timingBarrierWait(pthread_barrier_t* barrier, int event_num, int tid);
+
 #endif

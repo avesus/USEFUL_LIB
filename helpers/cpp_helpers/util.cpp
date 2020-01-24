@@ -3,6 +3,8 @@
 
 const char* progname;
 
+//////////////////////////////////////////////////////////////////////
+//error functions
 void dieOnErrno(const char* fn, int ln, int en, const char* msg, ...){
   va_list ap;
   va_start(ap, msg);
@@ -24,6 +26,8 @@ void die(const char* fmt, ...) {
   exit(-1);
 }
 
+//////////////////////////////////////////////////////////////////////
+//alloc stuff
 void* myCalloc(size_t nmemb, size_t size, const char* fname, const int ln) {
   void* p = calloc(nmemb, size);
   if(!p){
@@ -57,6 +61,14 @@ void* myACalloc(size_t alignment, size_t nmemb, size_t size, const char* fname, 
   return p;
 }
 
+void myFree(void* ptr){
+  if(ptr){
+    free(ptr);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////
+//thread stuff
 void mySet_Core(pthread_attr_t* attr,
 		size_t core,
 		const char* fname,
@@ -80,6 +92,15 @@ void myPthread_Create(pthread_t* tid,
 		      const int ln){
   if(pthread_create(tid, attr, fun, args)){
     errdie("Failed to create thread at %s:%d\n", fname, ln);
+  }
+}
+
+void myBarrierInit(pthread_barrier_t* barrier,
+		   int nthreads,
+		   const char* fname,
+		   const int ln){
+  if(pthread_barrier_init(barrier, NULL, nthreads)){
+    errdie("Failed to init barrier at %s:%d\n", fname, ln);
   }
 }
 
